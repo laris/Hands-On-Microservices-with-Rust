@@ -1,6 +1,5 @@
-use futures::{future, Future};
 use hyper::{Body, Error, Method, Request, Response, Server, StatusCode};
-use hyper::service::service_fn;
+use hyper::service::{make_service_fn, service_fn};
 
 const INDEX: &'static str = r#"
 <!doctype html>
@@ -14,27 +13,37 @@ const INDEX: &'static str = r#"
 </html>
 "#;
 
-fn microservice_handler(req: Request<Body>)
-    -> impl Future<Item=Response<Body>, Error=Error>
+async fn microservice_handler(req: Request<Body>) -> Result<Response<Body>, Error>
+//    -> impl Future<Item=Response<Body>, Error=Error>
 {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") => {
-            future::ok(Response::new(INDEX.into()))
+            println!("Request:\n{:#?}", req);
+            let resp = Response::new(INDEX.into());
+            println!("Response:\n{:#?}", resp);
+            Ok(resp)
         },
         _ => {
-            let response = Response::builder()
+            println!("Request:\n{:#?}", req);
+            let resp = Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::empty())
                 .unwrap();
-            future::ok(response)
+            println!("Response:\n{:#?}", resp);
+            Ok(resp)
         },
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let addr = ([127, 0, 0, 1], 8080).into();
-    let builder = Server::bind(&addr);
-    let server = builder.serve(|| service_fn(microservice_handler));
-    let server = server.map_err(drop);
-    hyper::rt::run(server);
+    let make_svc = make_service_fn(|_| async move {
+        Ok::<_, Error>(service_fn(|req|microservice_handler(req)))
+    });
+
+    let server = Server::bind(&addr).serve(make_svc);
+    if let Err(e) = server.await {
+        eprintln!("Server error: {}", e);
+    }
 }

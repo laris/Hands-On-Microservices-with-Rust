@@ -1,5 +1,7 @@
 use hyper::{Body, Error, Method, Request, Response, Server, StatusCode};
 use hyper::service::{make_service_fn, service_fn};
+// curl -viA '' http://localhost:8080
+// curl -viA '' -X POST http://localhost:8080
 
 const INDEX: &'static str = r#"
 <!doctype html>

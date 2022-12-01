@@ -1,7 +1,6 @@
 use std::fmt;
 use std::sync::{Arc, Mutex};
 use slab::Slab;
-use futures::{future, Future};
 use hyper::{Body, Error, Method, Request, Response, Server, StatusCode};
 use hyper::service::service_fn;
 

@@ -2,7 +2,9 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 use slab::Slab;
 use hyper::{Body, Error, Method, Request, Response, Server, StatusCode};
-use hyper::service::service_fn;
+use hyper::service::{make_service_fn, service_fn};
+// curl -viA '' http://localhost:8080
+// curl -viA '' -X POST http://localhost:8080
 
 const INDEX: &str = r#"
 <!doctype html>
@@ -30,9 +32,10 @@ type UserDb = Arc<Mutex<Slab<UserData>>>;
 
 const USER_PATH: &str = "/user/";
 
-fn microservice_handler(req: Request<Body>, user_db: &UserDb)
-    -> impl Future<Item=Response<Body>, Error=Error>
+async fn microservice_handler(req: Request<Body>, user_db: UserDb)
+    -> Result<Response<Body>, Error>
 {
+    println!("Request:\n{:#?}", req);
     let response = {
         match (req.method(), req.uri().path()) {
             (&Method::GET, "/") => {
@@ -43,6 +46,8 @@ fn microservice_handler(req: Request<Body>, user_db: &UserDb)
                     .parse::<UserId>()
                     .ok()
                     .map(|x| x as usize);
+                println!("Request match method: {:?}, path: {:?}, user_id: {:?}", &method, &path, &user_id);
+                let user_db = user_db.clone();
                 let mut users = user_db.lock().unwrap();
                 match (method, user_id) {
                     (&Method::GET, Some(id)) => {
@@ -82,10 +87,11 @@ fn microservice_handler(req: Request<Body>, user_db: &UserDb)
             },
             _ => {
                 response_with_code(StatusCode::NOT_FOUND)
-            },
+           },
         }
     };
-    future::ok(response)
+    println!("Response:\n{:#?}", response);
+    Ok(response)
 }
 
 fn response_with_code(status_code: StatusCode) -> Response<Body> {
@@ -95,14 +101,17 @@ fn response_with_code(status_code: StatusCode) -> Response<Body> {
         .unwrap()
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let addr = ([127, 0, 0, 1], 8080).into();
-    let builder = Server::bind(&addr);
     let user_db = Arc::new(Mutex::new(Slab::new()));
-    let server = builder.serve(move || {
+    let make_svc = make_service_fn(move|_| {
         let user_db = user_db.clone();
-        service_fn(move |req| microservice_handler(req, &user_db))
+        let service = service_fn(move |req| microservice_handler(req, user_db.clone()));
+        async move { Ok::<_, Error>(service) }
     });
-    let server = server.map_err(drop);
-    hyper::rt::run(server);
+    let server = Server::bind(&addr).serve(make_svc);
+    if let Err(e) = server.await {
+        eprintln!("Server error: {}", e);
+    }
 }

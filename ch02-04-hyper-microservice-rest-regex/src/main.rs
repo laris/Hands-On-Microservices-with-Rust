@@ -2,9 +2,9 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 use slab::Slab;
 use lazy_static::lazy_static;
-use futures::{future, Future};
+//use futures::{future, Future};
 use hyper::{Body, Error, Method, Request, Response, Server, StatusCode};
-use hyper::service::service_fn;
+use hyper::service::{service_fn, make_service_fn};
 use regex::Regex;
 
 const INDEX: &str = r#"
@@ -37,9 +37,10 @@ lazy_static! {
     static ref USERS_PATH: Regex = Regex::new("^/users/?$").unwrap();
 }
 
-fn microservice_handler(req: Request<Body>, user_db: &UserDb)
-    -> impl Future<Item=Response<Body>, Error=Error>
+async fn microservice_handler(req: Request<Body>, user_db: UserDb)
+    -> Result<Response<Body>, Error>
 {
+    println!("Request:\n{:#?}", req);
     let response = {
         let method = req.method();
         let path = req.uri().path();
@@ -106,7 +107,9 @@ fn microservice_handler(req: Request<Body>, user_db: &UserDb)
             response_with_code(StatusCode::NOT_FOUND)
         }
     };
-    future::ok(response)
+    //future::ok(response)
+    println!("Response:\n{:#?}", response);
+    Ok(response)
 }
 
 fn response_with_code(status_code: StatusCode) -> Response<Body> {
@@ -116,14 +119,25 @@ fn response_with_code(status_code: StatusCode) -> Response<Body> {
         .unwrap()
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let addr = ([127, 0, 0, 1], 8080).into();
-    let builder = Server::bind(&addr);
+    // let builder = Server::bind(&addr);
     let user_db = Arc::new(Mutex::new(Slab::new()));
-    let server = builder.serve(move || {
+    // let server = builder.serve(move || {
+    //     let user_db = user_db.clone();
+    //     service_fn(move |req| microservice_handler(req, &user_db))
+    // });
+    // let server = server.map_err(drop);
+    // hyper::rt::run(server);
+    
+    let make_svc = make_service_fn(move|_| {
         let user_db = user_db.clone();
-        service_fn(move |req| microservice_handler(req, &user_db))
+        let service = service_fn(move |req| microservice_handler(req, user_db.clone()));
+        async move { Ok::<_, Error>(service) }
     });
-    let server = server.map_err(drop);
-    hyper::rt::run(server);
+    let server = Server::bind(&addr).serve(make_svc);
+    if let Err(e) = server.await {
+        eprintln!("Server error: {}", e);
+    }
 }

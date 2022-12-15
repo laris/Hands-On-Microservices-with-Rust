@@ -47,7 +47,7 @@ async fn microservice_handler(req: Request<Body>, user_db: UserDb)
                     .ok()
                     .map(|x| x as usize);
                 println!("Request match method: {:?}, path: {:?}, user_id: {:?}", &method, &path, &user_id);
-                let user_db = user_db.clone();
+                //let user_db = user_db.clone();
                 let mut users = user_db.lock().unwrap();
                 match (method, user_id) {
                     (&Method::GET, Some(id)) => {

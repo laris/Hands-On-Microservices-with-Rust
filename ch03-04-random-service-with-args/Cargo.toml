@@ -1,15 +1,17 @@
 [package]
-name = "random-service-with-env"
+name = "random-service-with-args"
 version = "0.1.0"
 authors = ["Denis Kolodin <deniskolodin@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+clap = "2.32"
+
 pretty_env_logger = "0.4"
 env_logger = "0.10"
 dotenv = "0.15"
-
 log = "0.4"
+
 tokio = { version = "1", features = ["full"] }
 hyper = { version = "0.14", features = ["full"] }
 rand = "0.8"

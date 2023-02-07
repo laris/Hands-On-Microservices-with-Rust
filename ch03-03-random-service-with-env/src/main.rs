@@ -7,7 +7,7 @@ use log::{debug, info, trace};
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    //pretty_env_logger::init();
+    pretty_env_logger::init();
     info!("Rand Microservice - v0.1.0");
     trace!("Starting...");
     //let addr = ([127, 0, 0, 1], 8080).into();

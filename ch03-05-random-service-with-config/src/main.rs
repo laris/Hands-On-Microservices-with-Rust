@@ -1,8 +1,7 @@
 use clap::{crate_authors, crate_description, crate_name, crate_version, Arg, App};
 use dotenv::dotenv;
-use hyper::{Body, Response, Server};
-use hyper::rt::Future;
-use hyper::service::service_fn_ok;
+use hyper::{Body, Response, Server, Error};
+use hyper::service::{make_service_fn, service_fn};
 use log::{debug, info, trace, warn};
 use serde_derive::Deserialize;
 use std::env;
@@ -15,9 +14,11 @@ struct Config {
     address: SocketAddr,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     dotenv().ok();
-    env_logger::init();
+    //env_logger::init();
+    pretty_env_logger::init();
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
@@ -58,6 +59,30 @@ fn main() {
         .or(config.map(|config| config.address))
         .or_else(|| Some(([127, 0, 0, 1], 8080).into()))
         .unwrap();
+
+    trace!("Creating service handler...");
+    let make_svc = make_service_fn(|_| {
+        let service = service_fn(|req| {
+            trace!("Incoming request is: {:?}", req);
+            //println!("{:#?}", req);
+            let random_byte = rand::random::<u8>();
+            debug!("Generated value is: {}", random_byte);
+            let resp = Response::new(Body::from(random_byte.to_string()));
+            trace!("Response is: {:?}", resp);
+            //println!("{:#?}", resp);
+            async move { Ok::<_, Error>(resp)}
+        });
+        async move { Ok::<_, Error>(service) }
+    });
+
+    debug!("Trying to bind server to address: {}", addr);
+    let server = Server::bind(&addr).serve(make_svc);
+    info!("Used address: {}", server.local_addr());
+    debug!("Run!");
+    if let Err(e) = server.await {
+        eprintln!("Server error: {}", e);
+    }
+    /*
     debug!("Trying to bind server to address: {}", addr);
     let builder = Server::bind(&addr);
     trace!("Creating service handler...");
@@ -73,4 +98,5 @@ fn main() {
     let server = server.map_err(drop);
     debug!("Run!");
     hyper::rt::run(server);
+    */
 }
